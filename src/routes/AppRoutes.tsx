@@ -4,7 +4,7 @@ import { useRoutes } from 'react-router-dom'
 import AuthIndex from '../features/auth'
 
 //super admin
-import SuperAdminIndex from '../features/superadmin/SuperAdminIndex'
+import SuperAdminIndex from '../features/superadmin/pages/SuperAdminDashboard'
 
 
 
