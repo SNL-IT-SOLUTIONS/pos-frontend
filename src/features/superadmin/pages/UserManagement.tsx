@@ -7,7 +7,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit, Trash2, Users, Shield, UserCheck, UserX } from 'lucide-react';
+import {
+    Plus,
+    Edit,
+    Trash2,
+    Users,
+    UserCheck,
+    UserX,
+    Search,
+    Mail,
+    Calendar
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface User {
@@ -16,11 +26,10 @@ interface User {
     email: string;
     firstName: string;
     lastName: string;
-    role: 'super_admin' | 'admin' | 'manager' | 'cashier';
+    role: 'super_admin' | 'admin' | 'manager' | 'cashier' | any;
     isActive: boolean;
     lastLogin?: string;
     createdDate: string;
-    permissions: string[];
 }
 
 const mockUsers: User[] = [
@@ -33,8 +42,7 @@ const mockUsers: User[] = [
         role: 'super_admin',
         isActive: true,
         lastLogin: '2024-01-20T10:30:00',
-        createdDate: '2024-01-01',
-        permissions: ['all']
+        createdDate: '2024-01-01'
     },
     {
         id: '2',
@@ -45,8 +53,7 @@ const mockUsers: User[] = [
         role: 'admin',
         isActive: true,
         lastLogin: '2024-01-19T15:45:00',
-        createdDate: '2024-01-02',
-        permissions: ['inventory', 'sales', 'customers', 'reports']
+        createdDate: '2024-01-02'
     },
     {
         id: '3',
@@ -57,8 +64,7 @@ const mockUsers: User[] = [
         role: 'manager',
         isActive: true,
         lastLogin: '2024-01-18T09:15:00',
-        createdDate: '2024-01-05',
-        permissions: ['inventory', 'sales', 'customers']
+        createdDate: '2024-01-05'
     }
 ];
 
@@ -67,42 +73,18 @@ export default function UserManagement() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [roleFilter, setRoleFilter] = useState<string>('All');
+    const [statusFilter, setStatusFilter] = useState<string>('All');
 
     const [formData, setFormData] = useState({
         username: '',
         email: '',
         firstName: '',
         lastName: '',
-        role: 'cashier' as User['role'],
-        isActive: true,
-        permissions: [] as string[]
+        role: 'cashier' as const,
+        isActive: true
     });
-
-    const roleOptions = [
-        { value: 'super_admin', label: 'Super Admin' },
-        { value: 'admin', label: 'Admin' },
-        { value: 'manager', label: 'Manager' },
-        { value: 'cashier', label: 'Cashier' }
-    ];
-
-    const permissionOptions = [
-        'inventory', 'sales', 'customers', 'reports', 'settings', 'users'
-    ];
-
-    useEffect(() => {
-        // Load users from localStorage
-        const savedUsers = localStorage.getItem('pos_users');
-        if (savedUsers) {
-            setUsers(JSON.parse(savedUsers));
-        } else {
-            localStorage.setItem('pos_users', JSON.stringify(mockUsers));
-        }
-    }, []);
-
-    const saveUsers = (updatedUsers: User[]) => {
-        setUsers(updatedUsers);
-        localStorage.setItem('pos_users', JSON.stringify(updatedUsers));
-    };
 
     const handleCreateUser = () => {
         setFormData({
@@ -111,8 +93,7 @@ export default function UserManagement() {
             firstName: '',
             lastName: '',
             role: 'cashier',
-            isActive: true,
-            permissions: []
+            isActive: true
         });
         setIsEditing(false);
         setIsDialogOpen(true);
@@ -125,8 +106,7 @@ export default function UserManagement() {
             firstName: user.firstName,
             lastName: user.lastName,
             role: user.role,
-            isActive: user.isActive,
-            permissions: user.permissions
+            isActive: user.isActive
         });
         setSelectedUser(user);
         setIsEditing(true);
@@ -151,148 +131,196 @@ export default function UserManagement() {
             const newUser: User = {
                 id: Date.now().toString(),
                 ...formData,
-                createdDate: new Date().toISOString().split('T')[0],
-                lastLogin: undefined
+                createdDate: new Date().toISOString().split('T')[0]
             };
             updatedUsers = [...users, newUser];
             toast.success('User created successfully');
         }
 
-        saveUsers(updatedUsers);
+        setUsers(updatedUsers);
         setIsDialogOpen(false);
     };
 
     const handleDeleteUser = (id: string) => {
-        if (id === '1') {
-            toast.error('Cannot delete super admin user');
-            return;
-        }
-
         const updatedUsers = users.filter(user => user.id !== id);
-        saveUsers(updatedUsers);
+        setUsers(updatedUsers);
         toast.success('User deleted successfully');
     };
 
-    const toggleUserStatus = (id: string) => {
-        if (id === '1') {
-            toast.error('Cannot deactivate super admin user');
-            return;
-        }
-
+    const handleToggleUserStatus = (id: string) => {
         const updatedUsers = users.map(user =>
             user.id === id ? { ...user, isActive: !user.isActive } : user
         );
-        saveUsers(updatedUsers);
+        setUsers(updatedUsers);
         toast.success('User status updated');
     };
 
-    const getRoleBadgeColor = (role: User['role']) => {
+    const filteredUsers = users.filter(user => {
+        const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesRole = roleFilter === 'All' || user.role === roleFilter;
+        const matchesStatus = statusFilter === 'All' ||
+            (statusFilter === 'Active' && user.isActive) ||
+            (statusFilter === 'Inactive' && !user.isActive);
+
+        return matchesSearch && matchesRole && matchesStatus;
+    });
+
+    const userStats = {
+        total: users.length,
+        active: users.filter(u => u.isActive).length,
+        inactive: users.filter(u => !u.isActive).length,
+        admins: users.filter(u => u.role === 'admin' || u.role === 'super_admin').length
+    };
+
+    const getRoleBadgeColor = (role: string) => {
         switch (role) {
-            case 'super_admin': return 'destructive';
-            case 'admin': return 'default';
-            case 'manager': return 'secondary';
-            case 'cashier': return 'outline';
-            default: return 'outline';
+            case 'super_admin': return 'bg-red-100 text-red-800';
+            case 'admin': return 'bg-blue-100 text-blue-800';
+            case 'manager': return 'bg-green-100 text-green-800';
+            case 'cashier': return 'bg-gray-100 text-gray-800';
+            default: return 'bg-gray-100 text-gray-800';
         }
     };
 
-    const formatLastLogin = (lastLogin?: string) => {
-        if (!lastLogin) return 'Never';
-        return new Date(lastLogin).toLocaleDateString();
-    };
-
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
+        <div className="space-y-4 sm:space-y-6">
+            {/* Header - Mobile Responsive */}
+            <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                        <Users className="w-6 h-6 text-primary-foreground" />
+                        <Users className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold">User Management</h2>
-                        <p className="text-muted-foreground">Manage system users and their permissions</p>
+                        <h2 className="text-xl sm:text-2xl font-bold">User Management</h2>
+                        <p className="text-sm sm:text-base text-muted-foreground">Manage system users and access</p>
                     </div>
                 </div>
-                <Button onClick={handleCreateUser}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add User
+                <Button onClick={handleCreateUser} className="gap-2 self-start sm:self-auto">
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Add User</span>
+                    <span className="sm:hidden">Add</span>
                 </Button>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Total Users</p>
-                                <p className="text-2xl font-bold">{users.length}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Total Users</p>
+                                <p className="text-xl sm:text-2xl font-bold">{userStats.total}</p>
                             </div>
-                            <Users className="w-8 h-8 text-blue-500" />
+                            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
                         </div>
                     </CardContent>
                 </Card>
 
                 <Card>
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Active Users</p>
-                                <p className="text-2xl font-bold">{users.filter(u => u.isActive).length}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Active Users</p>
+                                <p className="text-xl sm:text-2xl font-bold">{userStats.active}</p>
                             </div>
-                            <UserCheck className="w-8 h-8 text-green-500" />
+                            <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
                         </div>
                     </CardContent>
                 </Card>
 
                 <Card>
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Admins</p>
-                                <p className="text-2xl font-bold">{users.filter(u => u.role === 'admin' || u.role === 'super_admin').length}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Inactive Users</p>
+                                <p className="text-xl sm:text-2xl font-bold">{userStats.inactive}</p>
                             </div>
-                            <Shield className="w-8 h-8 text-purple-500" />
+                            <UserX className="w-6 h-6 sm:w-8 sm:h-8 text-gray-500" />
                         </div>
                     </CardContent>
                 </Card>
 
                 <Card>
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Inactive Users</p>
-                                <p className="text-2xl font-bold">{users.filter(u => !u.isActive).length}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Administrators</p>
+                                <p className="text-xl sm:text-2xl font-bold">{userStats.admins}</p>
                             </div>
-                            <UserX className="w-8 h-8 text-red-500" />
+                            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500" />
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Users Table */}
+            {/* Search and Filters */}
             <Card>
                 <CardHeader>
-                    <CardTitle>System Users</CardTitle>
-                    <CardDescription>
-                        Manage user accounts and permissions
-                    </CardDescription>
+                    <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
+                        <div>
+                            <CardTitle className="text-lg sm:text-xl">User Overview</CardTitle>
+                            <CardDescription className="text-sm sm:text-base">
+                                Manage system users and their access levels
+                            </CardDescription>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative">
+                                <Input
+                                    placeholder="Search users..."
+                                    value={searchTerm}
+                                    onChange={(e: any) => setSearchTerm(e.target.value)}
+                                    className="pl-10 w-full sm:w-64"
+                                />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                            </div>
+                            <Select value={roleFilter} onValueChange={setRoleFilter}>
+                                <SelectTrigger className="w-full sm:w-40">
+                                    <SelectValue placeholder="Filter by role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="All">All Roles</SelectItem>
+                                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="manager">Manager</SelectItem>
+                                    <SelectItem value="cashier">Cashier</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger className="w-full sm:w-40">
+                                    <SelectValue placeholder="Filter by status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="All">All Status</SelectItem>
+                                    <SelectItem value="Active">Active</SelectItem>
+                                    <SelectItem value="Inactive">Inactive</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
                 </CardHeader>
+            </Card>
+
+            {/* Users Table */}
+            <Card>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>User</TableHead>
-                                <TableHead>Email</TableHead>
+                                <TableHead className="hidden sm:table-cell">Username</TableHead>
+                                <TableHead className="hidden lg:table-cell">Email</TableHead>
                                 <TableHead>Role</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead>Last Login</TableHead>
+                                <TableHead className="hidden lg:table-cell">Last Login</TableHead>
                                 <TableHead>Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((user) => (
+                            {filteredUsers.map((user) => (
                                 <TableRow key={user.id}>
                                     <TableCell>
                                         <div className="flex items-center gap-3">
@@ -302,25 +330,38 @@ export default function UserManagement() {
                                                 </span>
                                             </div>
                                             <div>
-                                                <p className="font-medium">{user.firstName} {user.lastName}</p>
-                                                <p className="text-sm text-muted-foreground">@{user.username}</p>
+                                                <p className="font-medium text-sm sm:text-base">{user.firstName} {user.lastName}</p>
+                                                <p className="text-xs text-muted-foreground sm:hidden">{user.username}</p>
                                             </div>
                                         </div>
                                     </TableCell>
-                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell className="hidden sm:table-cell">
+                                        <span className="text-sm">{user.username}</span>
+                                    </TableCell>
+                                    <TableCell className="hidden lg:table-cell">
+                                        <div className="flex items-center gap-1">
+                                            <Mail className="w-3 h-3 text-muted-foreground" />
+                                            <span className="text-sm">{user.email}</span>
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
-                                        <Badge variant={getRoleBadgeColor(user.role)}>
-                                            {roleOptions.find(r => r.value === user.role)?.label}
+                                        <Badge className={`text-xs ${getRoleBadgeColor(user.role)}`}>
+                                            {user.role.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                                        <Badge variant={user.isActive ? 'default' : 'secondary'} className="text-xs">
                                             {user.isActive ? 'Active' : 'Inactive'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>{formatLastLogin(user.lastLogin)}</TableCell>
+                                    <TableCell className="hidden lg:table-cell">
+                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <Calendar className="w-3 h-3" />
+                                            {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -331,8 +372,7 @@ export default function UserManagement() {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => toggleUserStatus(user.id)}
-                                                disabled={user.id === '1'}
+                                                onClick={() => handleToggleUserStatus(user.id)}
                                             >
                                                 {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                                             </Button>
@@ -340,7 +380,6 @@ export default function UserManagement() {
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => handleDeleteUser(user.id)}
-                                                disabled={user.id === '1'}
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -355,95 +394,93 @@ export default function UserManagement() {
 
             {/* Add/Edit User Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>
                             {isEditing ? 'Edit User' : 'Add New User'}
                         </DialogTitle>
                         <DialogDescription>
-                            Create or modify user accounts and permissions
+                            Create or modify user accounts and access levels
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="firstName">First Name *</Label>
-                            <Input
-                                id="firstName"
-                                value={formData.firstName}
-                                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                                placeholder="Enter first name"
-                            />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Label htmlFor="firstName">First Name *</Label>
+                                <Input
+                                    id="firstName"
+                                    value={formData.firstName}
+                                    onChange={(e: any) => setFormData({ ...formData, firstName: e.target.value })}
+                                    placeholder="John"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="lastName">Last Name *</Label>
+                                <Input
+                                    id="lastName"
+                                    value={formData.lastName}
+                                    onChange={(e: any) => setFormData({ ...formData, lastName: e.target.value })}
+                                    placeholder="Doe"
+                                />
+                            </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="lastName">Last Name *</Label>
-                            <Input
-                                id="lastName"
-                                value={formData.lastName}
-                                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                                placeholder="Enter last name"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
+                        <div>
                             <Label htmlFor="username">Username *</Label>
                             <Input
                                 id="username"
                                 value={formData.username}
-                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                placeholder="Enter username"
+                                onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
+                                placeholder="johndoe"
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        <div>
                             <Label htmlFor="email">Email *</Label>
                             <Input
                                 id="email"
                                 type="email"
                                 value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                placeholder="Enter email address"
+                                onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
+                                placeholder="john@example.com"
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        <div>
                             <Label htmlFor="role">Role</Label>
-                            <Select value={formData.role} onValueChange={(value: User['role']) => setFormData({ ...formData, role: value })}>
+                            <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {roleOptions.map(role => (
-                                        <SelectItem key={role.value} value={role.value}>
-                                            {role.label}
-                                        </SelectItem>
-                                    ))}
+                                    <SelectItem value="cashier">Cashier</SelectItem>
+                                    <SelectItem value="manager">Manager</SelectItem>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="super_admin">Super Admin</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    id="isActive"
-                                    checked={formData.isActive}
-                                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                                    className="rounded"
-                                />
-                                <Label htmlFor="isActive">Active User</Label>
-                            </div>
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                id="isActive"
+                                checked={formData.isActive}
+                                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                                className="rounded"
+                            />
+                            <Label htmlFor="isActive">Active User</Label>
                         </div>
-                    </div>
 
-                    <div className="flex justify-end space-x-2 pt-4">
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveUser}>
-                            {isEditing ? 'Update' : 'Create'} User
-                        </Button>
+                        <div className="flex justify-end space-x-2 pt-4">
+                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSaveUser}>
+                                {isEditing ? 'Update' : 'Create'} User
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
